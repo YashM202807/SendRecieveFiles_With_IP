@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>File Transfer App</title>
+<style>
+  /* Reset and basics */
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f4f7fa;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    align-items: center;
+  }
+  .container {
+    background: white;
+    max-width: 420px;
+    width: 90vw;
+    padding: 24px 32px 40px;
+    border-radius: 14px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 24px;
+    color: #222;
+  }
+  /* Tabs */
+  .tabs {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 32px;
+  }
+  .tab {
+    cursor: pointer;
+    padding: 12px 28px;
+    border-radius: 30px 30px 0 0;
+    background: #e3eaf2;
+    color: #555;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    user-select: none;
+    margin: 0 8px;
+  }
+  .tab.active {
+    background: #4f8ef7;
+    color: white;
+    box-shadow: 0 4px 12px rgb(79 142 247 / 0.5);
+  }
+  /* Forms */
+  form {
+    display: none;
+    flex-direction: column;
+  }
+  form.active {
+    display: flex;
+  }
+  label {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #333;
+  }
+  input[type="text"], input[type="file"] {
+    padding: 10px 14px;
+    font-size: 16px;
+    border: 2px solid #cbd4db;
+    border-radius: 8px;
+    outline-offset: 2px;
+    transition: border-color 0.3s ease;
+    width: 100%;
+    margin-bottom: 18px;
+  }
+  input[type="text"]:focus, input[type="file"]:focus {
+    border-color: #4f8ef7;
+  }
+  /* Drag and Drop */
+  .dropzone {
+    padding: 40px 20px;
+    border: 2px dashed #b0c4de;
+    border-radius: 12px;
+    text-align: center;
+    color: #8a9bb8;
+    font-size: 16px;
+    margin-bottom: 20px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+  }
+  .dropzone.dragover {
+    background-color: #e1eaff;
+    border-color: #4f8ef7;
+    color: #4f8ef7;
+  }
+  /* Buttons */
+  button {
+    padding: 14px;
+    font-size: 16px;
+    background-color: #4f8ef7;
+    color: white;
+    font-weight: 700;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    user-select: none;
+  }
+  button:disabled {
+    background-color: #a0b9f6;
+    cursor: not-allowed;
+  }
+  button:hover:not(:disabled) {
+    background-color: #366fcc;
+  }
+  /* Status & Progress */
+  .status {
+    margin-top: 20px;
+    font-weight: 600;
+    min-height: 24px;
+    color: #444;
+    text-align: center;
+  }
+  .progress-bar {
+    margin-top: 10px;
+    height: 14px;
+    border-radius: 10px;
+    background-color: #e3eaf2;
+    overflow: hidden;
+  }
+  .progress-bar > div {
+    height: 100%;
+    width: 0%;
+    background-color: #4f8ef7;
+    transition: width 0.3s ease;
+  }
+  /* Responsive */
+  @media (max-width: 450px) {
+    .container {
+      padding: 18px 22px 30px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container" role="main" aria-label="File transfer application">
+  <h1>File Transfer</h1>
+  <nav class="tabs" role="tablist" aria-label="Send or receive file">
+    <div class="tab active" role="tab" tabindex="0" aria-selected="true" aria-controls="send-panel" id="send-tab">Send</div>
+    <div class="tab" role="tab" tabindex="-1" aria-selected="false" aria-controls="receive-panel" id="receive-tab">Receive</div>
+  </nav>
+
+  <form id="send-panel" class="active" role="tabpanel" aria-labelledby="send-tab">
+    <label for="ip-input">Receiver IP address</label>
+    <input type="text" id="ip-input" name="ip" placeholder="e.g. 192.168.1.25" autocomplete="off" required pattern="^(?:(?:25[0-5]|2[0-4][0-9]|1\d\d|[1-9]?\d)(?:\.|$)){4}$" title="Enter a valid IPv4 address" />
+    
+    <label for="file-input">Choose file to send</label>
+    <div id="dropzone" class="dropzone" tabindex="0" aria-label="File drop zone">Drag & drop file here or click to browse</div>
+    <input type="file" id="file-input" name="file" hidden required />
+
+    <button type="button" id="send-btn" disabled>Send File</button>
+
+    <div class="status" id="send-status" aria-live="polite"></div>
+    <div class="progress-bar" aria-hidden="true"><div id="send-progress"></div></div>
+  </form>
+
+  <form id="receive-panel" role="tabpanel" aria-labelledby="receive-tab">
+    <button type="button" id="receive-btn">Wait to Receive File</button>
+    <div class="status" id="receive-status" aria-live="polite"></div>
+    <div class="progress-bar" aria-hidden="true"><div id="receive-progress"></div></div>
+  </form>
+</div>
+
+<script>
+  // Tab switching logic
+  const sendTab = document.getElementById('send-tab');
+  const receiveTab = document.getElementById('receive-tab');
+  const sendPanel = document.getElementById('send-panel');
+  const receivePanel = document.getElementById('receive-panel');
+
+  function switchTab(toSend) {
+    if(toSend) {
+      sendTab.classList.add('active');
+      sendTab.setAttribute('aria-selected', 'true');
+      sendTab.tabIndex = 0;
+
+      receiveTab.classList.remove('active');
+      receiveTab.setAttribute('aria-selected', 'false');
+      receiveTab.tabIndex = -1;
+
+      sendPanel.classList.add('active');
+      receivePanel.classList.remove('active');
+    } else {
+      receiveTab.classList.add('active');
+      receiveTab.setAttribute('aria-selected', 'true');
+      receiveTab.tabIndex = 0;
+
+      sendTab.classList.remove('active');
+      sendTab.setAttribute('aria-selected', 'false');
+      sendTab.tabIndex = -1;
+
+      receivePanel.classList.add('active');
+      sendPanel.classList.remove('active');
+    }
+  }
+
+  sendTab.addEventListener('click', () => switchTab(true));
+  sendTab.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') switchTab(true) });
+  receiveTab.addEventListener('click', () => switchTab(false));
+  receiveTab.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') switchTab(false) });
+
+  // Drag and Drop + File select
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  const sendBtn = document.getElementById('send-btn');
+  const ipInput = document.getElementById('ip-input');
+  const sendStatus = document.getElementById('send-status');
+  const sendProgressBar = document.getElementById('send-progress');
+
+  function validateIP(ip) {
+    const pattern = /^(?:(?:25[0-5]|2[0-4][0-9]|1\d\d|[1-9]?\d)(?:\.|$)){4}$/;
+    return pattern.test(ip);
+  }
+
+  function updateSendBtnState() {
+    sendBtn.disabled = !(fileInput.files.length > 0 && validateIP(ipInput.value.trim()));
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('dragover');
+  });
+  dropzone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+  });
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if(e.dataTransfer.files.length > 0) {
+      fileInput.files = e.dataTransfer.files;
+      dropzone.textContent = fileInput.files[0].name;
+      updateSendBtnState();
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    if(fileInput.files.length > 0) {
+      dropzone.textContent = fileInput.files[0].name;
+    } else {
+      dropzone.textContent = 'Drag & drop file here or click to browse';
+    }
+    updateSendBtnState();
+  });
+
+  ipInput.addEventListener('input', updateSendBtnState);
+
+  sendBtn.addEventListener('click', async () => {
+    sendStatus.textContent = '';
+    sendProgressBar.style.width = '0%';
+
+    const ip = ipInput.value.trim();
+    const file = fileInput.files[0];
+    if(!validateIP(ip)) {
+      sendStatus.textContent = 'Please enter a valid IP address.';
+      return;
+    }
+    if(!file) {
+      sendStatus.textContent = 'Please select a file.';
+      return;
+    }
+
+    sendBtn.disabled = true;
+    sendStatus.textContent = 'Sending file...';
+
+    try {
+      const formData = new FormData();
+      formData.append('ip', ip);
+      formData.append('file', file);
+
+      const response = await fetch('/send', {
+        method: 'POST',
+        body: formData
+      });
+
+      if(!response.ok) throw new Error(`Server error: ${response.statusText}`);
+      const result = await response.json();
+
+      if(result.success) {
+        sendStatus.textContent = `File sent successfully to ${ip}`;
+        sendProgressBar.style.width = '100%';
+      } else {
+        sendStatus.textContent = `Failed: ${result.message}`;
+      }
+    } catch(err) {
+      sendStatus.textContent = `Error: ${err.message}`;
+    }
+    sendBtn.disabled = false;
+  });
+
+  // Receive panel
+  const receiveBtn = document.getElementById('receive-btn');
+  const receiveStatus = document.getElementById('receive-status');
+  const receiveProgressBar = document.getElementById('receive-progress');
+
+  receiveBtn.addEventListener('click', async () => {
+    receiveBtn.disabled = true;
+    receiveStatus.textContent = 'Waiting to receive file...';
+
+    try {
+      // This will start the receive process on backend, 
+      // backend should handle socket listening & file saving asynchronously
+      const response = await fetch('/receive', {
+        method: 'POST'
+      });
+      if(!response.ok) throw new Error(`Server error: ${response.statusText}`);
+      const result = await response.json();
+
+      if(result.success) {
+        receiveStatus.textContent = `File received: ${result.filename}`;
+        receiveProgressBar.style.width = '100%';
+      } else {
+        receiveStatus.textContent = `Failed: ${result.message}`;
+        receiveBtn.disabled = false;
+        receiveProgressBar.style.width = '0%';
+      }
+    } catch(err) {
+      receiveStatus.textContent = `Error: ${err.message}`;
+      receiveBtn.disabled = false;
+      receiveProgressBar.style.width = '0%';
+    }
+  });
+</script>
+</body>
+</html>
