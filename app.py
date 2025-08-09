@@ -5,13 +5,11 @@ import os
 import time
 
 app = Flask(__name__)
-PORT = 5001
-
-# Folder to save received files
+PORT = 5001  # Socket port for file transfer
 RECEIVE_FOLDER = "received_files"
 os.makedirs(RECEIVE_FOLDER, exist_ok=True)
 
-# Global to store received filename (simplified for demo)
+# Simple global state to track received file info
 received_file_info = {
     'filename': None,
     'received': False
@@ -43,7 +41,6 @@ def receive_file_server():
     s.close()
     print(f"Received file saved as {filepath}")
 
-    # Update global status
     received_file_info['filename'] = filename
     received_file_info['received'] = True
 
@@ -90,15 +87,13 @@ def send_route():
 
 @app.route('/receive', methods=['POST'])
 def receive_route():
-    # Reset status
+    # Reset status before receiving
     received_file_info['received'] = False
     received_file_info['filename'] = None
 
-    # Run receiver in thread so request returns immediately
     thread = threading.Thread(target=receive_file_server, daemon=True)
     thread.start()
 
-    # Wait up to 30 seconds for file to be received (simplified)
     timeout = 30
     waited = 0
     while not received_file_info['received'] and waited < timeout:
