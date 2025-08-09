@@ -314,8 +314,6 @@
     receiveStatus.textContent = 'Waiting to receive file...';
 
     try {
-      // This will start the receive process on backend, 
-      // backend should handle socket listening & file saving asynchronously
       const response = await fetch('/receive', {
         method: 'POST'
       });
